@@ -2,8 +2,6 @@
 
 A serverless fashion ecommerce platform with AI-powered virtual try-on using Amazon Nova Canvas.
 
-**Live Demo:** https://d3f1a1aecq96xc.cloudfront.net
-
 ## Architecture
 
 - **Frontend** — Static SPA hosted on S3 + CloudFront (Swiss Clean design)
