@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier — Fashion Catalog</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page">
+    <!-- Navigation -->
+    <nav class="nav">
+      <div class="container">
+        <a href="index.html" class="nav__logo">Atelier<span>.</span></a>
+        <div class="nav__links">
+          <a href="index.html" class="nav__link active">Catalog</a>
+          <a href="tryon.html" class="nav__link">Try On</a>
+          <span class="nav__user"></span>
+          <button class="nav__link" id="authBtn" onclick="handleAuth()">Sign In</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero__eyebrow stagger stagger-1">AI-Powered Fashion</div>
+        <h1 class="hero__title stagger stagger-2">See it on <em>you</em></h1>
+        <p class="hero__subtitle stagger stagger-3">
+          Try any piece virtually before you buy. Powered by Amazon Nova Canvas.
+        </p>
+      </div>
+    </section>
+
+    <!-- Catalog -->
+    <section class="section">
+      <div class="container">
+        <div class="section__header stagger stagger-3">
+          <h2 class="section__title">Collection</h2>
+          <span class="section__count" id="productCount"></span>
+        </div>
+
+        <div class="filters stagger stagger-4" id="filters"></div>
+        <div class="product-grid" id="productGrid"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const CATEGORIES = ['all', 'tops', 'outerwear', 'bottoms', 'dresses', 'footwear'];
+    let allProducts = [];
+    let activeFilter = 'all';
+
+    function handleAuth() {
+      (App.isLoggedIn() || App.isGuest()) ? App.logout() : (window.location.href = 'login.html');
+    }
+
+    function renderFilters() {
+      const el = document.getElementById('filters');
+      el.innerHTML = CATEGORIES.map(c =>
+        `<button class="filter-btn${c === activeFilter ? ' active' : ''}" onclick="filterBy('${c}')">
+          ${c}
+        </button>`
+      ).join('');
+    }
+
+    function filterBy(cat) {
+      activeFilter = cat;
+      renderFilters();
+      renderProducts();
+    }
+
+    function renderProducts() {
+      const grid = document.getElementById('productGrid');
+      const filtered = activeFilter === 'all'
+        ? allProducts
+        : allProducts.filter(p => p.category === activeFilter);
+
+      document.getElementById('productCount').textContent = `${filtered.length} pieces`;
+
+      grid.innerHTML = filtered.map((p, i) => `
+        <div class="card stagger stagger-${Math.min(i % 4 + 1, 6)}" onclick="goToTryon('${p.product_id}')">
+          <div class="card__image">
+            <img src="${p.image_url || ''}" alt="${p.name}" loading="lazy"
+                 onerror="this.parentElement.style.background='var(--grey-100)'">
+            ${p.garment_class === 'UPPER_BODY' ? '<span class="card__badge">Try On</span>' : ''}
+          </div>
+          <div class="card__body">
+            <div class="card__category">${p.category || ''}</div>
+            <div class="card__name">${p.name}</div>
+            <div class="card__price">$${p.price}</div>
+            <div class="card__tryon">Virtual Try-On →</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function goToTryon(productId) {
+      if (!App.isLoggedIn() && !App.isGuest()) {
+        App.toast('Sign in or continue as guest to try on', true);
+        return;
+      }
+      window.location.href = `tryon.html?product=${productId}`;
+    }
+
+    async function init() {
+      // Force login or guest selection before browsing
+      console.log('[INDEX] init — isLoggedIn:', App.isLoggedIn(), 'isGuest:', App.isGuest(), 'token:', !!localStorage.getItem('auth_token'));
+      if (!App.isLoggedIn() && !App.isGuest()) {
+        console.log('[INDEX] Redirecting to login.html');
+        window.location.href = 'login.html';
+        return;
+      }
+
+      // Update auth button
+      const authBtn = document.getElementById('authBtn');
+      if (App.isLoggedIn()) {
+        authBtn.textContent = 'Sign Out';
+      } else if (App.isGuest()) {
+        authBtn.textContent = 'Sign In';
+      }
+
+      allProducts = await loadProducts();
+      renderFilters();
+      renderProducts();
+    }
+
+    init();
+  </script>
+</body>
+</html>

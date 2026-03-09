@@ -1,28 +1,34 @@
 #!/usr/bin/env python3
-import os
-
 import aws_cdk as cdk
+from cdk_nag import AwsSolutionsChecks
 
-from virtual_tryon.virtual_tryon_stack import VirtualTryonStack
-
+from infrastructure.database_stack import DatabaseStack
+from infrastructure.auth_stack import AuthStack
+from infrastructure.storage_stack import StorageStack
+from infrastructure.api_stack import ApiStack
+from infrastructure.frontend_stack import FrontendStack
 
 app = cdk.App()
-VirtualTryonStack(app, "VirtualTryonStack",
-    # If you don't specify 'env', this stack will be environment-agnostic.
-    # Account/Region-dependent features and context lookups will not work,
-    # but a single synthesized template can be deployed anywhere.
 
-    # Uncomment the next line to specialize this stack for the AWS Account
-    # and Region that are implied by the current CLI configuration.
+db_stack = DatabaseStack(app, "FashionDbStack")
+auth_stack = AuthStack(app, "FashionAuthStack")
+storage_stack = StorageStack(app, "FashionStorageStack")
 
-    #env=cdk.Environment(account=os.getenv('CDK_DEFAULT_ACCOUNT'), region=os.getenv('CDK_DEFAULT_REGION')),
+api_stack = ApiStack(
+    app, "FashionApiStack",
+    user_pool=auth_stack.user_pool,
+    products_table=db_stack.products_table,
+    orders_table=db_stack.orders_table,
+    tryon_table=db_stack.tryon_table,
+    images_bucket=storage_stack.images_bucket,
+)
+api_stack.add_dependency(db_stack)
+api_stack.add_dependency(auth_stack)
+api_stack.add_dependency(storage_stack)
 
-    # Uncomment the next line if you know exactly what Account and Region you
-    # want to deploy the stack to. */
+frontend_stack = FrontendStack(app, "FashionFrontendStack", api_url=api_stack.api_url)
+frontend_stack.add_dependency(api_stack)
 
-    #env=cdk.Environment(account='123456789012', region='us-east-1'),
-
-    # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
-    )
+cdk.Aspects.of(app).add(AwsSolutionsChecks())
 
 app.synth()

@@ -8,3 +8,12 @@ __pycache__
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+
+# Layers
+layers/pillow/pillow-layer.zip
+
+# Misc
+/tmp/
+*.pyc
+.DS_Store
+node_modules/

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier — Create Account</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-visual">
+      <div class="auth-visual__logo stagger stagger-1">
+        Atelier<span>.</span>
+      </div>
+      <div class="auth-visual__tagline stagger stagger-2">See it on you before you buy</div>
+    </div>
+
+    <div class="auth-form-side">
+      <div class="auth-form">
+        <h1 class="auth-form__title stagger stagger-2">Create account</h1>
+        <p class="auth-form__subtitle stagger stagger-3">Join to unlock virtual try-on</p>
+
+        <form id="registerForm" onsubmit="return handleRegister(event)">
+          <div class="form-group stagger stagger-3">
+            <label class="form-label" for="fullname">Full Name</label>
+            <input class="form-input" type="text" id="fullname" placeholder="Jane Doe" required>
+          </div>
+          <div class="form-group stagger stagger-3">
+            <label class="form-label" for="email">Email</label>
+            <input class="form-input" type="email" id="email" placeholder="your@email.com" required>
+          </div>
+          <div class="form-group stagger stagger-4">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-input" type="password" id="password" placeholder="Min 8 chars, upper, lower, digit, symbol" required minlength="8">
+          </div>
+          <div class="form-group stagger stagger-4">
+            <label class="form-label" for="confirmPassword">Confirm Password</label>
+            <input class="form-input" type="password" id="confirmPassword" placeholder="••••••••" required>
+          </div>
+          <div id="registerError" class="form-error" style="display:none; margin-bottom:16px;"></div>
+          <button type="submit" class="btn btn--primary btn--full btn--lg stagger stagger-5" id="regBtn">
+            Create Account
+          </button>
+        </form>
+
+        <div class="form-divider stagger stagger-5">or</div>
+
+        <button class="btn btn--outline btn--full stagger stagger-6" onclick="guestAccess()">
+          Continue as Guest
+        </button>
+
+        <p class="auth-form__footer stagger stagger-6">
+          Already have an account? <a href="login.html">Sign in</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const REGION = 'ap-southeast-1';
+    const CLIENT_ID = '6fi26nna2kg0q926k4gk9upeag';
+    const COGNITO_URL = `https://cognito-idp.${REGION}.amazonaws.com/`;
+
+    async function cognitoFetch(action, payload) {
+      const res = await fetch(COGNITO_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-amz-json-1.1', 'X-Amz-Target': `AWSCognitoIdentityProviderService.${action}` },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.__type || 'Registration failed');
+      return data;
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const btn = document.getElementById('regBtn');
+      const errEl = document.getElementById('registerError');
+      const fullname = document.getElementById('fullname').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const confirm = document.getElementById('confirmPassword').value;
+
+      errEl.style.display = 'none';
+      if (password !== confirm) { errEl.textContent = 'Passwords do not match'; errEl.style.display = 'block'; return; }
+
+      btn.textContent = 'Creating…';
+      btn.disabled = true;
+
+      try {
+        await cognitoFetch('SignUp', {
+          ClientId: CLIENT_ID,
+          Username: email,
+          Password: password,
+          UserAttributes: [{ Name: 'name', Value: fullname }, { Name: 'email', Value: email }]
+        });
+        errEl.textContent = 'Account created! Check your email to verify, then sign in.';
+        errEl.style.display = 'block';
+        errEl.style.color = 'var(--green, green)';
+        setTimeout(() => { window.location.href = 'login.html'; }, 2500);
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.textContent = 'Create Account';
+        btn.disabled = false;
+      }
+    }
+
+    function guestAccess() { App.continueAsGuest(); window.location.href = 'index.html'; }
+    if (App.isLoggedIn() || App.isGuest()) window.location.href = 'index.html';
+  </script>
+</body>
+</html>

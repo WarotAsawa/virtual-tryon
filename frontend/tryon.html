@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier — Virtual Try-On</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page">
+    <nav class="nav">
+      <div class="container">
+        <a href="index.html" class="nav__logo">Atelier<span>.</span></a>
+        <div class="nav__links">
+          <a href="index.html" class="nav__link">Catalog</a>
+          <a href="tryon.html" class="nav__link active">Try On</a>
+          <span class="nav__user"></span>
+          <button class="nav__link" id="authBtn" onclick="handleAuth()">Sign In</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="tryon-layout">
+      <!-- LEFT: Your Photo -->
+      <div class="tryon-panel tryon-panel--left">
+        <div class="tryon-panel__title stagger stagger-1">Your Photo</div>
+        <div class="tryon-panel__desc stagger stagger-2">Upload a photo or use your camera</div>
+
+        <div class="upload-zone stagger stagger-3" id="uploadZone" onclick="triggerUpload()">
+          <input type="file" id="fileInput" accept="image/jpeg,image/png" style="display:none" onchange="handleFileUpload(event)">
+          <video id="cameraFeed" class="camera-feed" autoplay playsinline style="display:none"></video>
+          <img id="previewImg" class="upload-zone__preview" style="display:none">
+
+          <div id="uploadPlaceholder">
+            <svg class="upload-zone__icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="6" y="10" width="36" height="28" rx="2"/>
+              <circle cx="18" cy="22" r="4"/>
+              <path d="M6 34l10-10 8 8 6-6 12 12"/>
+            </svg>
+            <div class="upload-zone__text">Click to upload or drag a photo</div>
+            <div class="upload-zone__hint">JPG or PNG — Full body works best</div>
+          </div>
+
+          <div id="cameraControls" class="camera-controls" style="display:none">
+            <button class="camera-btn--secondary" onclick="event.stopPropagation(); stopCamera()">✕</button>
+            <button class="camera-btn" onclick="event.stopPropagation(); capturePhoto()"></button>
+            <button class="camera-btn--secondary" onclick="event.stopPropagation(); flipCamera()">⟲</button>
+          </div>
+
+          <div id="previewActions" class="upload-zone__actions" style="display:none">
+            <button class="btn btn--outline" style="flex:1; font-size:0.694rem; padding:10px;" onclick="event.stopPropagation(); clearPhoto()">Change</button>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top:16px;" class="stagger stagger-4">
+          <button class="btn btn--outline" style="flex:1" onclick="triggerUpload()">
+            Upload Photo
+          </button>
+          <button class="btn btn--outline" style="flex:1" onclick="startCamera()">
+            Open Camera
+          </button>
+        </div>
+
+        <!-- Product Selector -->
+        <div style="margin-top:32px;">
+          <div class="tryon-panel__title stagger stagger-4">Select Garment</div>
+          <div class="tryon-panel__desc stagger stagger-5">Choose a product to try on</div>
+          <div class="product-selector stagger stagger-5" id="productSelector"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Result -->
+      <div class="tryon-panel">
+        <div class="tryon-panel__title stagger stagger-2">Result</div>
+        <div class="tryon-panel__desc stagger stagger-3">Your virtual try-on preview</div>
+
+        <div class="tryon-result stagger stagger-4" id="resultArea">
+          <div class="tryon-result__placeholder" id="resultPlaceholder">
+            <svg class="tryon-result__placeholder-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1">
+              <rect x="8" y="4" width="48" height="56" rx="3"/>
+              <circle cx="32" cy="24" r="8"/>
+              <path d="M16 56c0-8 7-14 16-14s16 6 16 14"/>
+            </svg>
+            <div class="upload-zone__text">Upload a photo and select a garment</div>
+            <div class="upload-zone__hint">Then hit "Generate Try-On"</div>
+          </div>
+          <img id="resultImg" alt="Try-on result" style="display:none">
+          <div id="loadingOverlay" class="loading-overlay" style="display:none">
+            <div class="spinner"></div>
+            <div class="loading-text">Generating with Nova Canvas…</div>
+          </div>
+        </div>
+
+        <!-- Input summary: Original + Product (below result) -->
+        <div id="comparisonView" class="tryon-inputs" style="display:none">
+          <div class="tryon-inputs__item">
+            <div class="tryon-inputs__label">Your Photo</div>
+            <img id="compOriginal" alt="Original">
+          </div>
+          <div class="tryon-inputs__sep">+</div>
+          <div class="tryon-inputs__item">
+            <div class="tryon-inputs__label">Garment</div>
+            <img id="compProduct" alt="Product">
+          </div>
+          <div class="tryon-inputs__sep">=</div>
+          <div class="tryon-inputs__label" style="font-weight:600; color:var(--black)">Result ↑</div>
+        </div>
+
+        <button class="btn btn--red btn--full btn--lg stagger stagger-5" style="margin-top:24px;" id="generateBtn" onclick="generateTryOn()" disabled>
+          Generate Try-On
+        </button>
+
+        <div id="resultActions" style="display:none; margin-top:16px; display:flex; gap:8px;">
+          <button class="btn btn--outline" style="flex:1" onclick="downloadResult()">Download</button>
+          <button class="btn btn--outline" style="flex:1" onclick="resetTryOn()">Try Another</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    let userPhotoB64 = null;
+    let selectedProduct = null;
+    let cameraStream = null;
+    let facingMode = 'user';
+
+    function handleAuth() {
+      (App.isLoggedIn() || App.isGuest()) ? App.logout() : (window.location.href = 'login.html');
+    }
+
+    // ── File Upload ──
+    function triggerUpload() {
+      if (userPhotoB64) return; // already has image
+      document.getElementById('fileInput').click();
+    }
+
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        userPhotoB64 = ev.target.result.split(',')[1];
+        showPreview(ev.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function showPreview(dataUrl) {
+      const zone = document.getElementById('uploadZone');
+      const preview = document.getElementById('previewImg');
+      const placeholder = document.getElementById('uploadPlaceholder');
+      const actions = document.getElementById('previewActions');
+
+      zone.classList.add('has-image');
+      preview.src = dataUrl;
+      preview.style.display = 'block';
+      placeholder.style.display = 'none';
+      actions.style.display = 'flex';
+      stopCamera();
+      updateGenerateBtn();
+    }
+
+    function clearPhoto() {
+      userPhotoB64 = null;
+      const zone = document.getElementById('uploadZone');
+      zone.classList.remove('has-image');
+      document.getElementById('previewImg').style.display = 'none';
+      document.getElementById('uploadPlaceholder').style.display = 'block';
+      document.getElementById('previewActions').style.display = 'none';
+      document.getElementById('fileInput').value = '';
+      updateGenerateBtn();
+    }
+
+    // ── Camera ──
+    async function startCamera() {
+      try {
+        stopCamera();
+        clearPhoto();
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode, width: { ideal: 1280 }, height: { ideal: 1920 } }
+        });
+        const video = document.getElementById('cameraFeed');
+        const zone = document.getElementById('uploadZone');
+        const placeholder = document.getElementById('uploadPlaceholder');
+        const controls = document.getElementById('cameraControls');
+
+        video.srcObject = cameraStream;
+        video.style.display = 'block';
+        placeholder.style.display = 'none';
+        controls.style.display = 'flex';
+        zone.classList.add('has-image');
+        zone.onclick = null;
+      } catch (err) {
+        App.toast('Camera access denied or unavailable', true);
+      }
+    }
+
+    function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+      }
+      const video = document.getElementById('cameraFeed');
+      video.style.display = 'none';
+      video.srcObject = null;
+      document.getElementById('cameraControls').style.display = 'none';
+      document.getElementById('uploadZone').onclick = () => triggerUpload();
+    }
+
+    function flipCamera() {
+      facingMode = facingMode === 'user' ? 'environment' : 'user';
+      startCamera();
+    }
+
+    function capturePhoto() {
+      const video = document.getElementById('cameraFeed');
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      userPhotoB64 = dataUrl.split(',')[1];
+      showPreview(dataUrl);
+    }
+
+    // ── Product Selector ──
+    async function loadProductSelector() {
+      const products = await loadProducts();
+      const selector = document.getElementById('productSelector');
+
+      // Pre-select from URL param
+      const urlProduct = new URLSearchParams(window.location.search).get('product');
+
+      selector.innerHTML = products.map(p => `
+        <div class="product-selector__item ${p.product_id === urlProduct ? 'selected' : ''}"
+             onclick="selectProduct('${p.product_id}')" data-id="${p.product_id}">
+          <img src="${p.image_url || ''}" alt="${p.name}" loading="lazy"
+               onerror="this.style.display='none'">
+          <div class="product-selector__name">${p.name}</div>
+        </div>
+      `).join('');
+
+      App.products = products;
+      if (urlProduct) selectProduct(urlProduct);
+    }
+
+    function selectProduct(id) {
+      selectedProduct = App.products.find(p => p.product_id === id) || null;
+      document.querySelectorAll('.product-selector__item').forEach(el => {
+        el.classList.toggle('selected', el.dataset.id === id);
+      });
+      updateGenerateBtn();
+    }
+
+    function updateGenerateBtn() {
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = !(userPhotoB64 && selectedProduct);
+    }
+
+    // ── Generate Try-On ──
+    async function generateTryOn() {
+      if (!userPhotoB64 || !selectedProduct) return;
+
+      if (!App.isLoggedIn() && !App.isGuest()) {
+        App.toast('Please sign in or continue as guest', true);
+        window.location.href = 'login.html';
+        return;
+      }
+
+      if (!App.isLoggedIn()) {
+        App.toast('Please sign in to use virtual try-on', true);
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const loading = document.getElementById('loadingOverlay');
+      const resultImg = document.getElementById('resultImg');
+      const placeholder = document.getElementById('resultPlaceholder');
+      const actions = document.getElementById('resultActions');
+
+      loading.style.display = 'flex';
+      placeholder.style.display = 'none';
+      resultImg.style.display = 'none';
+
+      try {
+        const data = await App.api('/tryon', {
+          method: 'POST',
+          body: JSON.stringify({
+            product_id: selectedProduct.product_id,
+            source_image: userPhotoB64,
+          }),
+        });
+
+        const session = data.tryon_session;
+        document.getElementById('compOriginal').src = `data:image/jpeg;base64,${userPhotoB64}`;
+        document.getElementById('compProduct').src = selectedProduct.image_url || '';
+        document.getElementById('comparisonView').style.display = 'flex';
+        document.getElementById('resultImg').src = session.result_url;
+        document.getElementById('resultImg').style.display = 'block';
+        placeholder.style.display = 'none';
+        actions.style.display = 'flex';
+        App.toast('Try-on generated successfully');
+      } catch (err) {
+        document.getElementById('compOriginal').src = `data:image/jpeg;base64,${userPhotoB64}`;
+        document.getElementById('compProduct').src = selectedProduct.image_url || '';
+        document.getElementById('comparisonView').style.display = 'flex';
+        document.getElementById('resultImg').src = selectedProduct.image_url || '';
+        document.getElementById('resultImg').style.display = 'block';
+        placeholder.style.display = 'none';
+        actions.style.display = 'flex';
+        App.toast('Demo mode — connect API for real results', true);
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    function downloadResult() {
+      const img = document.getElementById('resultImg');
+      if (!img.src) return;
+      const a = document.createElement('a');
+      a.href = img.src;
+      a.download = `atelier-tryon-${Date.now()}.png`;
+      a.click();
+    }
+
+    function resetTryOn() {
+      document.getElementById('comparisonView').style.display = 'none';
+      document.getElementById('resultImg').style.display = 'none';
+      document.getElementById('resultPlaceholder').style.display = 'block';
+      document.getElementById('resultActions').style.display = 'none';
+      clearPhoto();
+      document.querySelectorAll('.product-selector__item').forEach(el => el.classList.remove('selected'));
+      selectedProduct = null;
+      updateGenerateBtn();
+    }
+
+    // ── Init ──
+    (function init() {
+      // Force login or guest selection before using try-on
+      if (!App.isLoggedIn() && !App.isGuest()) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const authBtn = document.getElementById('authBtn');
+      authBtn.textContent = App.isLoggedIn() ? 'Sign Out' : 'Sign In';
+
+      loadProductSelector();
+    })();
+  </script>
+</body>
+</html>

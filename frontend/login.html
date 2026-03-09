@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier — Sign In</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="auth-page">
+    <!-- Left visual panel -->
+    <div class="auth-visual">
+      <div class="auth-visual__logo stagger stagger-1">
+        Atelier<span>.</span>
+      </div>
+      <div class="auth-visual__tagline stagger stagger-2">Virtual Try-On Experience</div>
+    </div>
+
+    <!-- Right form panel -->
+    <div class="auth-form-side">
+      <div class="auth-form">
+        <h1 class="auth-form__title stagger stagger-2">Sign in</h1>
+        <p class="auth-form__subtitle stagger stagger-3">Enter your credentials to continue</p>
+
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+          <div class="form-group stagger stagger-3">
+            <label class="form-label" for="email">Email</label>
+            <input class="form-input" type="email" id="email" placeholder="your@email.com" required>
+          </div>
+          <div class="form-group stagger stagger-4">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-input" type="password" id="password" placeholder="••••••••" required>
+          </div>
+          <div id="loginError" class="form-error" style="display:none; margin-bottom:16px;"></div>
+          <button type="submit" class="btn btn--primary btn--full btn--lg stagger stagger-5" id="loginBtn">
+            Sign In
+          </button>
+        </form>
+
+        <div class="form-divider stagger stagger-5">or</div>
+
+        <button class="btn btn--outline btn--full stagger stagger-6" onclick="guestAccess()">
+          Continue as Guest
+        </button>
+
+        <p class="auth-form__footer stagger stagger-6">
+          No account? <a href="register.html">Create one</a>
+        </p>
+
+        <!-- New Password Challenge Form -->
+        <form id="newPasswordForm" onsubmit="return handleNewPassword(event)" style="display:none">
+          <h2 class="auth-form__title">Set New Password</h2>
+          <p class="auth-form__subtitle">Your account requires a password change</p>
+          <div class="form-group">
+            <label class="form-label" for="newPassword">New Password</label>
+            <input class="form-input" type="password" id="newPassword" placeholder="••••••••" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="confirmNewPassword">Confirm Password</label>
+            <input class="form-input" type="password" id="confirmNewPassword" placeholder="••••••••" required>
+          </div>
+          <div id="newPwError" class="form-error" style="display:none; margin-bottom:16px;"></div>
+          <button type="submit" class="btn btn--primary btn--full btn--lg" id="newPwBtn">
+            Set Password & Sign In
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const REGION = 'ap-southeast-1';
+    const POOL_ID = 'ap-southeast-1_Zo2R2AtrF';
+    const CLIENT_ID = '6fi26nna2kg0q926k4gk9upeag';
+    const COGNITO_URL = `https://cognito-idp.${REGION}.amazonaws.com/`;
+
+    let pendingSession = null;
+    let pendingEmail = null;
+
+    async function cognitoFetch(action, payload) {
+      console.log('[COGNITO]', action, 'request');
+      const res = await fetch(COGNITO_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-amz-json-1.1', 'X-Amz-Target': `AWSCognitoIdentityProviderService.${action}` },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      console.log('[COGNITO]', action, 'status:', res.status, 'ok:', res.ok);
+      if (!res.ok) { console.error('[COGNITO] Error body:', data); throw new Error(data.message || data.__type || 'Auth failed'); }
+      return data;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('loginError');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function showNewPasswordForm() {
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('newPasswordForm').style.display = 'block';
+    }
+
+    function decodeJwt(token) {
+      const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      btn.textContent = 'Signing in…';
+      btn.disabled = true;
+      document.getElementById('loginError').style.display = 'none';
+
+      try {
+        console.log('[LOGIN] Calling InitiateAuth for:', email);
+        const data = await cognitoFetch('InitiateAuth', {
+          AuthFlow: 'USER_PASSWORD_AUTH',
+          ClientId: CLIENT_ID,
+          AuthParameters: { USERNAME: email, PASSWORD: password }
+        });
+        console.log('[LOGIN] Response:', JSON.stringify(data, null, 2));
+
+        if (data.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
+          console.log('[LOGIN] NEW_PASSWORD_REQUIRED challenge');
+          pendingSession = data.Session;
+          pendingEmail = email;
+          showNewPasswordForm();
+          return;
+        }
+
+        const idToken = data.AuthenticationResult.IdToken;
+        const refreshToken = data.AuthenticationResult.RefreshToken;
+        console.log('[LOGIN] Got IdToken, length:', idToken.length);
+        const payload = decodeJwt(idToken);
+        console.log('[LOGIN] JWT payload:', JSON.stringify(payload, null, 2));
+        App.setAuth(idToken, { email: payload.email || email, name: payload.name || payload.email || email }, refreshToken);
+        console.log('[LOGIN] Auth set. isLoggedIn:', App.isLoggedIn(), 'token in LS:', !!localStorage.getItem('auth_token'));
+        window.location.href = 'index.html';
+      } catch (err) {
+        console.error('[LOGIN] Error:', err);
+        showError(err.message);
+      } finally {
+        btn.textContent = 'Sign In';
+        btn.disabled = false;
+      }
+    }
+
+    async function handleNewPassword(e) {
+      e.preventDefault();
+      const btn = document.getElementById('newPwBtn');
+      const newPw = document.getElementById('newPassword').value;
+      const confirmPw = document.getElementById('confirmNewPassword').value;
+      const errEl = document.getElementById('newPwError');
+      errEl.style.display = 'none';
+
+      if (newPw !== confirmPw) { errEl.textContent = 'Passwords do not match'; errEl.style.display = 'block'; return; }
+
+      btn.textContent = 'Updating…';
+      btn.disabled = true;
+
+      try {
+        const data = await cognitoFetch('RespondToAuthChallenge', {
+          ChallengeName: 'NEW_PASSWORD_REQUIRED',
+          ClientId: CLIENT_ID,
+          Session: pendingSession,
+          ChallengeResponses: { USERNAME: pendingEmail, NEW_PASSWORD: newPw }
+        });
+
+        const idToken = data.AuthenticationResult.IdToken;
+        const refreshToken = data.AuthenticationResult.RefreshToken;
+        const payload = decodeJwt(idToken);
+        App.setAuth(idToken, { email: payload.email || pendingEmail, name: payload.name || pendingEmail }, refreshToken);
+        window.location.href = 'index.html';
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.textContent = 'Set Password & Sign In';
+        btn.disabled = false;
+      }
+    }
+
+    function guestAccess() {
+      App.continueAsGuest();
+      window.location.href = 'index.html';
+    }
+
+    if (App.isLoggedIn() || App.isGuest()) window.location.href = 'index.html';
+  </script>
+</body>
+</html>
