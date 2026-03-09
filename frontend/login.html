@@ -9,12 +9,19 @@
 <body>
   <div class="auth-page">
     <!-- Left visual panel -->
-    <div class="auth-visual">
+    <div class="auth-visual" id="authVisual">
       <div class="auth-visual__logo stagger stagger-1">
         Atelier<span>.</span>
       </div>
       <div class="auth-visual__tagline stagger stagger-2">Virtual Try-On Experience</div>
     </div>
+    <script>
+      (function() {
+        const i = Math.floor(Math.random() * 3) + 1;
+        document.getElementById('authVisual').style.backgroundImage =
+          `url('img/model-hero-00${i}.png')`;
+      })();
+    </script>
 
     <!-- Right form panel -->
     <div class="auth-form-side">

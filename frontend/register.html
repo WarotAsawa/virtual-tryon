@@ -8,12 +8,19 @@
 </head>
 <body>
   <div class="auth-page">
-    <div class="auth-visual">
+    <div class="auth-visual" id="authVisual">
       <div class="auth-visual__logo stagger stagger-1">
         Atelier<span>.</span>
       </div>
       <div class="auth-visual__tagline stagger stagger-2">See it on you before you buy</div>
     </div>
+    <script>
+      (function() {
+        const i = Math.floor(Math.random() * 3) + 1;
+        document.getElementById('authVisual').style.backgroundImage =
+          `url('img/model-hero-00${i}.png')`;
+      })();
+    </script>
 
     <div class="auth-form-side">
       <div class="auth-form">

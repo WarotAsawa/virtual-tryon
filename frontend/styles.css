@@ -306,6 +306,8 @@ img { display: block; max-width: 100%; }
 }
 .auth-visual {
   background: var(--black);
+  background-size: cover;
+  background-position: center;
   display: flex; flex-direction: column;
   justify-content: flex-end;
   padding: 80px;
@@ -315,9 +317,7 @@ img { display: block; max-width: 100%; }
 .auth-visual::before {
   content: '';
   position: absolute; inset: 0;
-  background:
-    repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(255,255,255,0.03) 79px, rgba(255,255,255,0.03) 80px),
-    repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(255,255,255,0.03) 79px, rgba(255,255,255,0.03) 80px);
+  background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.2));
 }
 .auth-visual__logo {
   font-family: var(--font-display);
